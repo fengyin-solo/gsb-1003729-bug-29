@@ -64,8 +64,34 @@ npm run build
 ## 约定
 
 - 每个模块的页面在 `frontend/src/views/<模块>/index.vue`，页面只负责渲染，读写统一走
-  `frontend/src/api/local-service.ts`。
+  `frontend/src/api/`：通用列表/流转走 `local-service.ts`，预警阈值的版本、批量重算与发布走
+  `warning-service.ts`，复核事项收件箱走 `review-service.ts`。
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
-  `frontend/src/data/seed.ts`。
-- 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
-- 想回到初始数据：清掉浏览器里 `hydrology-monitor-station:entries` 这一项，或调用 `resetModule(模块)`。
+  `frontend/src/data/seed.ts`；角色与权限在 `frontend/src/data/permissions.ts`。
+- 状态流转只允许在 `src/api/` 服务层里改，页面组件不做业务判断。
+- 想回到初始数据：清掉浏览器里 `hydrology-monitor-station:entries` 这一项，或调用 `resetModule(模块)`；
+  重算批次与复核事项存在 `hydrology-monitor-station:domain` 下。
+
+## 预警阈值批量重算
+
+- **一次提交一个批次**：勾选多条配置点「批量重算」，提交时对每条配置截取「版本 + 阈值」快照，
+  整组处理完批次才进入待发布；判断只认快照，之后配置再调整也不影响本批次。
+- **复核详情按批次看**：每条结果挂在「批次 × 版本快照」下，新记录不会按旧版本判断，
+  也不与历史版本混排。
+- **统一发布只生效一次**：整组处理完后一次性发布，跨模块写回监测记录的预警级别并生成复核事项；
+  同一批次重复发布、不同批次发布同一配置的同一版本，都不会重复生效。
+- **失败配置可单独退出**：配置已停用、监测类型未接入、阈值层级无效等会判失败，
+  可单独退出批次，不影响其余配置发布。
+- **存量缺阈值补数**：老数据阈值缺失或为占位文本时，读取即按监测类型套默认四级阈值并打
+  「存量补数」标记（水位 3.0/3.5/4.0/4.5，流量 100/200/300/400，雨量 30/50/70/100）。
+- **越权修改拒绝**：顶栏可切换角色（管理员/复核员/访客），服务层逐次校验权限，
+  越权操作直接拒绝并提示。
+- **复核事项**：批量重算发布命中橙/红预警、水质检测「发起复核」等入口都会生成复核事项，
+  在预警阈值页统一办结。
+
+领域逻辑冒烟测试（不依赖浏览器）：
+
+```bash
+cd frontend
+npm run test:domain
+```

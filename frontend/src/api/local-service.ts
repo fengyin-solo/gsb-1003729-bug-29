@@ -1,6 +1,7 @@
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
+import { createReviewItem } from '@/api/review-service'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
 const NEGATIVE_ACTIONS = ['撤销', '作废', '拒绝', '驳回', '停用', '忽略', '下线', '回滚']
@@ -53,6 +54,15 @@ export function runAction(key: string, id: number, action: string): ActionResult
   const next = [...rows]
   next[index] = updated
   saveRows(key, next)
+  // 复核入口联动：任何模块的「复核」动作都生成一条复核事项，进统一收件箱。
+  if (action.includes('复核')) {
+    createReviewItem({
+      来源模块: meta.name,
+      来源编号: String(updated[meta.fields[0]] ?? id),
+      事项类型: action,
+      内容: `${meta.entity}「${updated[meta.fields[0]] ?? id}」已${action}，生成待复核事项`,
+    })
+  }
   return { ok: true, message: `${meta.entity}已${action}，当前状态「${target}」` }
 }
 
