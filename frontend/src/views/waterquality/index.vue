@@ -79,6 +79,7 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { createWaterQualityReview } from '@/api/warning-service'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('waterquality')
@@ -114,6 +115,25 @@ function openCreate() {
 
 function runAction(action: string, row: EntryRow) {
   errorMessage.value = ''
+  // 复核入口不走通用状态流转：发起复核必须生成一条复核事项，进入复核事项中心。
+  if (action === '发起复核') {
+    const result = createWaterQualityReview(
+      String(row['报告编号']),
+      `水质报告 ${String(row['报告编号'])} 复核`,
+      `站点 ${String(row['采样站点'])}，检测项目 ${String(row['检测项目'])}，检测值 ${String(
+        row['检测值'],
+      )}，标准上限 ${String(row['标准上限'])}`,
+    )
+    if (!result.ok) {
+      errorMessage.value = result.message
+      return
+    }
+    // 事项生成成功后同步单据状态为「已复核」；若单据此前已是该状态也不影响事项生成。
+    applyAction(meta.key, Number(row.id), action, 'reviewer')
+    errorMessage.value = result.message
+    reload()
+    return
+  }
   const result = applyAction(meta.key, Number(row.id), action)
   if (!result.ok) {
     errorMessage.value = result.message

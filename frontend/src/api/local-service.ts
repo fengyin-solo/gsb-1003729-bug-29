@@ -1,5 +1,7 @@
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
+import { requireRole } from '@/api/auth'
+import type { OperatorRole } from '@/stores/session'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
@@ -28,8 +30,18 @@ export function listEntries(key: string, filters: Record<string, string> = {}): 
   return { items: matched, total: matched.length, page: 1, size: matched.length }
 }
 
-export function runAction(key: string, id: number, action: string): ActionResult {
+export function runAction(
+  key: string,
+  id: number,
+  action: string,
+  minRole: OperatorRole = 'admin',
+): ActionResult {
   const meta = moduleMeta(key)
+  // 通用状态流转默认要求管理员身份；复核类动作由调用方放宽到复核员。
+  const guard = requireRole(minRole, action)
+  if (!guard.ok) {
+    return { ok: false, message: guard.message }
+  }
   const target = meta.actionTargets[action]
   if (!target) {
     return { ok: false, message: `${meta.entity}没有登记「${action}」这个动作` }
